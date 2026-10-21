@@ -10,21 +10,90 @@ import { getCurrentGuild } from "@utils/discord";
 import definePlugin from "@utils/types";
 import type { Role } from "@vencord/discord-types";
 import {
+    Button,
     GuildRoleStore,
     Menu,
     Modal,
     PermissionsBits,
     Text,
-    Button
+    openModal
 } from "@webpack/common";
 
-function getDifferences(first: Role, second: Role) {
+interface PermissionDifference {
+    name: string;
+    bit: bigint;
+    firstHas: boolean;
+    secondHas: boolean;
+}
+
+function permissionName(name: string): string {
+    return name
+        .replace(/^USE_/, "Use ")
+        .replace(/^CREATE_/, "Create ")
+        .replace(/^MANAGE_/, "Manage ")
+        .replace(/^VIEW_/, "View ")
+        .replace(/^SEND_/, "Send ")
+        .replace(/^READ_/, "Read ")
+        .replace(/^CHANGE_/, "Change ")
+        .replace(/^MENTION_/, "Mention ")
+        .replace(/^KICK_/, "Kick ")
+        .replace(/^BAN_/, "Ban ")
+        .replace(/^MODERATE_/, "Moderate ")
+        .replace(/^ADD_/, "Add ")
+        .replace(/^MOVE_/, "Move ")
+        .replace(/^MUTE_/, "Mute ")
+        .replace(/^DEAFEN_/, "Deafen ")
+        .replace(/^PRIORITY_/, "Priority ")
+        .replace(/^APPLICATION_/, "Application ")
+        .replace(/^EXTERNAL_/, "External ")
+        .replace(/^INSTANT_/, "Instant ")
+        .replace(/^REQUEST_/, "Request ")
+        .replace(/^SPEAK$/, "Speak")
+        .replace(/^CONNECT$/, "Connect")
+        .replace(/^STREAM$/, "Stream")
+        .replace(/^ADMINISTRATOR$/, "Administrator")
+        .replace(/^EMBED_LINKS$/, "Embed Links")
+        .replace(/^ATTACH_FILES$/, "Attach Files")
+        .replace(/^ADD_REACTIONS$/, "Add Reactions")
+        .replace(/^PRIORITY_SPEAKER$/, "Priority Speaker")
+        .replace(/^VIEW_AUDIT_LOG$/, "View Audit Log")
+        .replace(/^MANAGE_GUILD$/, "Manage Server")
+        .replace(/^MANAGE_CHANNELS$/, "Manage Channels")
+        .replace(/^MANAGE_ROLES$/, "Manage Roles")
+        .replace(/^MANAGE_WEBHOOKS$/, "Manage Webhooks")
+        .replace(/^MANAGE_MESSAGES$/, "Manage Messages")
+        .replace(/^READ_MESSAGE_HISTORY$/, "Read Message History")
+        .replace(/^MENTION_EVERYONE$/, "Mention Everyone")
+        .replace(/^USE_VAD$/, "Use Voice Activity")
+        .replace(/^MANAGE_NICKNAMES$/, "Manage Nicknames")
+        .replace(/^MANAGE_EVENTS$/, "Manage Events")
+        .replace(/^MANAGE_THREADS$/, "Manage Threads")
+        .replace(/^SEND_MESSAGES_IN_THREADS$/, "Send Messages in Threads")
+        .replace(/^CREATE_PUBLIC_THREADS$/, "Create Public Threads")
+        .replace(/^CREATE_PRIVATE_THREADS$/, "Create Private Threads")
+        .replace(/^USE_EXTERNAL_STICKERS$/, "Use External Stickers")
+        .replace(/^USE_APPLICATION_COMMANDS$/, "Use Application Commands")
+        .replace(/^USE_SOUNDBOARD$/, "Use Soundboard")
+        .replace(/^USE_EXTERNAL_SOUNDS$/, "Use External Sounds")
+        .replace(/^SEND_VOICE_MESSAGES$/, "Send Voice Messages")
+        .replace(/^_/g, "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function getDifferences(
+    first: Role,
+    second: Role
+): PermissionDifference[] {
     const firstPermissions = BigInt(first.permissions);
     const secondPermissions = BigInt(second.permissions);
 
-    return Object.values(PermissionsBits)
-        .filter(bit => typeof bit === "bigint")
-        .map(bit => {
+    return Object.entries(PermissionsBits)
+        .filter(
+            (entry): entry is [string, bigint] =>
+                typeof entry[1] === "bigint"
+        )
+        .map(([name, bit]) => {
             const firstHas = (firstPermissions & bit) === bit;
             const secondHas = (secondPermissions & bit) === bit;
 
@@ -32,20 +101,16 @@ function getDifferences(first: Role, second: Role) {
                 return null;
 
             return {
+                name: permissionName(name),
                 bit,
                 firstHas,
                 secondHas
             };
         })
-        .filter(Boolean);
-}
-
-function PermissionName({ bit }: { bit: bigint }) {
-    return (
-        <Text variant="text-md/normal">
-            {String(bit)}
-        </Text>
-    );
+        .filter(
+            (permission): permission is PermissionDifference =>
+                permission !== null
+        );
 }
 
 function ComparisonModal({
@@ -55,6 +120,7 @@ function ComparisonModal({
 }: {
     first: Role;
     second: Role;
+    onClose: () => void;
 }) {
     const differences = getDifferences(first, second);
 
@@ -86,7 +152,7 @@ function ComparisonModal({
                         <div
                             style={{
                                 display: "grid",
-                                gridTemplateColumns: "1fr 100px 100px",
+                                gridTemplateColumns: "1fr 110px 110px",
                                 gap: "8px",
                                 maxHeight: "400px",
                                 overflowY: "auto"
@@ -105,23 +171,28 @@ function ComparisonModal({
                             </Text>
 
                             {differences.map(permission => (
-                                <React.Fragment key={String(permission!.bit)}>
-                                    <PermissionName
-                                        bit={permission!.bit}
-                                    />
+                                <div
+                                    key={permission.name}
+                                    style={{
+                                        display: "contents"
+                                    }}
+                                >
+                                    <Text variant="text-md/normal">
+                                        {permission.name}
+                                    </Text>
 
                                     <Text variant="text-md/normal">
-                                        {permission!.firstHas
+                                        {permission.firstHas
                                             ? "Allowed"
                                             : "Denied"}
                                     </Text>
 
                                     <Text variant="text-md/normal">
-                                        {permission!.secondHas
+                                        {permission.secondHas
                                             ? "Allowed"
                                             : "Denied"}
                                     </Text>
-                                </React.Fragment>
+                                </div>
                             ))}
                         </div>
                     </>
@@ -133,7 +204,10 @@ function ComparisonModal({
                         justifyContent: "flex-end"
                     }}
                 >
-                    <Button onClick={props.onClose}>
+                    <Button
+                        look={Button.Looks.FILLED}
+                        onClick={props.onClose}
+                    >
                         Close
                     </Button>
                 </div>
@@ -143,7 +217,7 @@ function ComparisonModal({
 }
 
 function openComparison(first: Role, second: Role) {
-    Modal.openModal(props => (
+    openModal(props => (
         <ComparisonModal
             {...props}
             first={first}
@@ -153,12 +227,13 @@ function openComparison(first: Role, second: Role) {
 }
 
 function RolePicker({
-    guildId,
     firstRole,
+    guildId,
     ...props
 }: {
-    guildId: string;
     firstRole: Role;
+    guildId: string;
+    onClose: () => void;
 }) {
     const roles = GuildRoleStore
         .getSortedRoles(guildId)
@@ -183,7 +258,7 @@ function RolePicker({
                 {roles.map(role => (
                     <Button
                         key={role.id}
-                        look={Button.Looks.OUTLINED}
+                        look={Button.Looks.FILLED}
                         onClick={() => {
                             props.onClose();
                             openComparison(firstRole, role);
@@ -198,13 +273,20 @@ function RolePicker({
                         There are no other roles to compare.
                     </Text>
                 )}
+
+                <Button
+                    look={Button.Looks.FILLED}
+                    onClick={props.onClose}
+                >
+                    Cancel
+                </Button>
             </div>
         </Modal>
     );
 }
 
 function openRolePicker(guildId: string, role: Role) {
-    Modal.openModal(props => (
+    openModal(props => (
         <RolePicker
             {...props}
             guildId={guildId}
