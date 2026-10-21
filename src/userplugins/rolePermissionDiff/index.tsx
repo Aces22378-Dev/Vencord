@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ContextMenuApi } from "@api/ContextMenu";
 import { getCurrentGuild } from "@utils/discord";
 import definePlugin from "@utils/types";
 import type { Role } from "@vencord/discord-types";
@@ -129,6 +128,7 @@ function ComparisonModal({
             {...props}
             title={`${first.name} vs ${second.name}`}
             size="small"
+            transitionState={0}
         >
             <div
                 style={{
@@ -244,6 +244,7 @@ function RolePicker({
             {...props}
             title={`Compare ${firstRole.name} with...`}
             size="small"
+            transitionState={0}
         >
             <div
                 style={{
@@ -326,7 +327,6 @@ export default definePlugin({
                     id="role-permission-diff"
                     label="Compare Permissions"
                     action={() => {
-                        ContextMenuApi.closeContextMenu();
                         openRolePicker(guild.id, role);
                     }}
                 />
